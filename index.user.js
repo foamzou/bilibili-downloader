@@ -17,7 +17,7 @@ const AUDIO_NAME = 'audio.m4s';
     'use strict';
     setTimeout(() => {
         initUI();
-    }, 1300);
+    }, 1700);
 
 })();
 
