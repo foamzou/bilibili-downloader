@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili downloader
 // @namespace    https://github.com/foamzou/bilibili-downloader
-// @version      0.1
+// @version      0.2
 // @description  哔哩哔哩（b站）音视频下载脚本
 // @author       foamzou
 // @match        https://www.bilibili.com/video/*
@@ -17,7 +17,7 @@ const AUDIO_NAME = 'audio.m4s';
     'use strict';
     setTimeout(() => {
         initUI();
-    }, 1700);
+    }, 2300);
 
 })();
 
@@ -26,17 +26,79 @@ function initUI() {
 }
 
 function createBtn() {
+
+    const heads = document.querySelector('head');
+    const style = document.createElement('style');
+    style.setAttribute('type', 'text/css');
+    style.innerHTML = `
+    .down-nav ul {
+      list-style: none;
+      padding:0;
+      margin:0;
+    }
+
+    .down-nav ul li {
+      display: block;
+      float: left;
+    }
+
+	.down-nav li ul {
+      display: none;
+    }
+
+    .down-nav ul li span {
+	  display: block;
+      font-family:helvetica;
+      font-size:20px;
+      padding: 10px;
+      text-decoration: none;
+      color: black;
+      width:100px;
+      border-radius:5%;
+    }
+
+    .down-nav ul li span:hover {
+      background:deepskyblue;
+      color:white;
+    }
+
+    .down-nav li:hover ul {
+      display: block;
+      position: absolute;
+    }
+
+    .down-nav li:hover li {
+      float: none;
+    }
+
+    .down-nav li:hover span {
+      background-color:white;
+      color:black;
+    }
+
+    .down-nav li:hover li span:hover {
+      width:100px;
+    }`;
+    heads.append(style);
+
     const node = document.createElement('span');
-    node.setAttribute('style', 'width: 70px;');
-    node.setAttribute('class', 'more');
-    node.innerHTML = `<i class="van-icon-download"></i>
-    <div class="more-ops-list" style="width:200px;">
-    <ul>
-    <li id="btnDownloadAudio">下载音频</li>
-    <li id="btnCopyCodeAudio">复制代码：获取音频</li>
-    <li id="btnCopyCodeVideo">复制代码：获取视频</li>
-    </ul></div>`;
-    document.getElementsByClassName('ops')[0].appendChild(node);
+    node.setAttribute('style', 'width: 70px;z-index: 9999;');
+    node.setAttribute('class', 'down-nav');
+    node.innerHTML = `
+      <ul>
+    <li>
+      <span style="width: 50px;"><i style="font-size:28px;" class="van-icon-download"></i></span>
+      <ul style="line-height: 15px; font-size:10px;">
+        <li><span style="font-size:10px;" id="btnDownloadAudio">下载音频</span></li>
+        <li><span style="font-size:10px;" id="btnCopyCodeAudio">复制代码：获取音频</span></li>
+        <li><span style="font-size:10px;" id="btnCopyCodeVideo">复制代码：获取视频</span></li>
+      </ul>
+    </li>
+  </ul>
+
+
+   `;
+    document.getElementsByClassName('toolbar-left')[0].appendChild(node);
 
     document.getElementById("btnDownloadAudio").addEventListener("click", downloadAudio);
     document.getElementById("btnCopyCodeAudio").addEventListener("click", copyCodeAudio);
@@ -120,7 +182,7 @@ function genCurlCmd(url, filename) {
     return `curl '${url}' \
   -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.61 Safari/537.36' \
   -H 'referer: ${window.location.href}' \
-  --compressed -o ${filename} -v -s`;
+  --compressed -o ${filename} -Lv -s`;
 }
 
 function ffmpegMp4(name) {
