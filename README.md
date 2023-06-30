@@ -3,6 +3,9 @@
 
 该脚本可运行在油猴插件。若你未安装，可访问 <a href="https://www.tampermonkey.net/" target="_blank">油猴官网</a> 下载安装。当然，该脚本也可以运行在类似油猴的浏览器插件中。甚至，你可以直接将该脚本粘贴到浏览器控制台运行。
 
+## Alternative
+你也可以用我的另一个开源项目来下载b站视频 https://github.com/foamzou/media-get
+
 ## 用途
 有时候，我们在 b站 听到喜欢的歌（或视频），希望将其下载到自己的音乐播放器，方便下次听。
 
