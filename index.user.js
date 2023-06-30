@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili downloader
 // @namespace    https://github.com/foamzou/bilibili-downloader
-// @version      0.2
+// @version      0.3
 // @description  哔哩哔哩（b站）音视频下载脚本
 // @author       foamzou
 // @match        https://www.bilibili.com/video/*
@@ -98,7 +98,7 @@ function createBtn() {
 
 
    `;
-    document.getElementsByClassName('toolbar-left')[0].appendChild(node);
+    document.getElementsByClassName('video-toolbar-left')[0].appendChild(node);
 
     document.getElementById("btnDownloadAudio").addEventListener("click", downloadAudio);
     document.getElementById("btnCopyCodeAudio").addEventListener("click", copyCodeAudio);
