@@ -186,11 +186,11 @@ function genCurlCmd(url, filename) {
 }
 
 function ffmpegMp4(name) {
-    return `ffmpeg -i ${VIDEO_NAME} -i ${AUDIO_NAME}  -c:v copy -strict experimental ${name}.mp4`;
+    return `ffmpeg -i ${VIDEO_NAME} -i ${AUDIO_NAME}  -c:v copy -strict experimental '${name}.mp4'`;
 }
 
 function ffmpegMp3(name) {
-    return `ffmpeg -i ${AUDIO_NAME}  -c:v copy -strict experimental ${name}.mp3`;
+    return `ffmpeg -i ${AUDIO_NAME}  -c:v copy -strict experimental '${name}.mp3'`;
 }
 
 function toast(msg, duration) {
