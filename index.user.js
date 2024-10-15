@@ -182,7 +182,7 @@ function genCurlCmd(url, filename) {
     return `curl '${url}' \
   -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.61 Safari/537.36' \
   -H 'referer: ${window.location.href}' \
-  --compressed -o ${filename} -Lv -s`;
+  --compressed -o '${filename}' -Lv -s`;
 }
 
 function ffmpegMp4(name) {
