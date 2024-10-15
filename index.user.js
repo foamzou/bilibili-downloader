@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili downloader
 // @namespace    https://github.com/foamzou/bilibili-downloader
-// @version      0.3
+// @version      0.3.1
 // @description  哔哩哔哩（b站）音视频下载脚本
 // @author       foamzou
 // @match        https://www.bilibili.com/video/*
