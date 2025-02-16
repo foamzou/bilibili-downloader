@@ -121,15 +121,7 @@ async function downloadAudio() {
     }
     const aNode = document.getElementById('IdDownloadAudio');
     const playInfo = getMediaInfo();
-    const startTime = document.getElementById('audioStartTime').value.trim();
-    const endTime = document.getElementById('audioEndTime').value.trim();
-    
-    const url = `https://foamzou.com/tools/bilibili/fetchAudio.php?url=${encodeURIComponent(playInfo.audioUrl)}&name=${playInfo.name}&vid=${playInfo.vid}`;
-    const fullUrl = startTime || endTime ? 
-        `${url}&start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}` : 
-        url;
-    
-    const responsePayload = await fetch(fullUrl);
+    const responsePayload = await fetch(`https://foamzou.com/tools/bilibili/fetchAudio.php?url=${encodeURIComponent(playInfo.audioUrl)}&name=${playInfo.name}&vid=${playInfo.vid}`);
     const response = await responsePayload.json();
     if (response.code != 0) {
         const tip = '音频转码失败，建议复制代码：获取音频';
@@ -213,7 +205,7 @@ function ffmpegMp3(name, startTime, endTime) {
         timeArgs += ` -to ${endTime}`;
     }
 
-    return `ffmpeg -i ${AUDIO_NAME}${timeArgs} -c:a libmp3lame -q:a 2 '${name}.mp3'`;
+    return `ffmpeg -i ${AUDIO_NAME}${timeArgs} -c:v copy -strict experimental '${name}.mp3'`;
 }
 
 function toast(msg, duration) {
