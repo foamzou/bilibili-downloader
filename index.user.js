@@ -167,10 +167,12 @@ function getMediaInfo() {
 
 function genMp4Cmd() {
     const playInfo = getMediaInfo();
+    const startTime = document.getElementById('audioStartTime').value.trim();
+    const endTime = document.getElementById('audioEndTime').value.trim();
 
     const videoCmd = genCurlCmd(playInfo.videoUrl, VIDEO_NAME);
     const audioCmd = genCurlCmd(playInfo.audioUrl, AUDIO_NAME);
-    const mp4Cmd = ffmpegMp4(playInfo.name);
+    const mp4Cmd = ffmpegMp4(playInfo.name, startTime, endTime);
     return `mkdir "${playInfo.name}" ; cd "${playInfo.name}" ; ${videoCmd} ; ${audioCmd} ; ${mp4Cmd}`;
 }
 
@@ -191,8 +193,17 @@ function genCurlCmd(url, filename) {
   --compressed -o '${filename}' -Lv -s`;
 }
 
-function ffmpegMp4(name) {
-    return `ffmpeg -i ${VIDEO_NAME} -i ${AUDIO_NAME}  -c:v copy -strict experimental '${name}.mp4'`;
+function ffmpegMp4(name, startTime, endTime) {
+    let timeArgs = '';
+
+    if (startTime) {
+        timeArgs += ` -ss ${startTime}`;
+    }
+    if (endTime) {
+        timeArgs += ` -to ${endTime}`;
+    }
+
+    return `ffmpeg -i ${VIDEO_NAME} -i ${AUDIO_NAME}${timeArgs} -c:v copy -strict experimental '${name}.mp4'`;
 }
 
 function ffmpegMp3(name, startTime, endTime) {
