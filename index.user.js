@@ -86,18 +86,22 @@ function createBtn() {
     node.setAttribute('class', 'down-nav');
     node.innerHTML = `
       <ul>
-    <li>
-      <span style="width: 50px;"><i style="font-size:28px;" class="van-icon-download"></i></span>
-      <ul style="line-height: 15px; font-size:10px;">
-        <li><span style="font-size:10px;" id="btnDownloadAudio">下载音频</span></li>
-        <li><span style="font-size:10px;" id="btnCopyCodeAudio">复制代码：获取音频</span></li>
-        <li><span style="font-size:10px;" id="btnCopyCodeVideo">复制代码：获取视频</span></li>
+        <li>
+          <span style="width: 50px;"><i style="font-size:28px;" class="van-icon-download"></i></span>
+          <ul style="line-height: 15px; font-size:10px;">
+            <li><span style="font-size:10px;" id="btnDownloadAudio">下载音频</span></li>
+            <li><span style="font-size:10px;" id="btnCopyCodeAudio">复制代码：获取音频</span></li>
+            <li><span style="font-size:10px;" id="btnCopyCodeVideo">复制代码：获取视频</span></li>
+            <li>
+              <div style="padding: 5px;">
+                <input type="text" id="audioStartTime" placeholder="开始时间(00:00)" style="width: 90px; margin: 2px; font-size: 12px;">
+                <input type="text" id="audioEndTime" placeholder="结束时间(00:00)" style="width: 90px; margin: 2px; font-size: 12px;">
+              </div>
+            </li>
+          </ul>
+        </li>
       </ul>
-    </li>
-  </ul>
-
-
-   `;
+    `;
     document.getElementsByClassName('video-toolbar-left')[0].appendChild(node);
 
     document.getElementById("btnDownloadAudio").addEventListener("click", downloadAudio);
@@ -117,7 +121,15 @@ async function downloadAudio() {
     }
     const aNode = document.getElementById('IdDownloadAudio');
     const playInfo = getMediaInfo();
-    const responsePayload = await fetch(`https://foamzou.com/tools/bilibili/fetchAudio.php?url=${encodeURIComponent(playInfo.audioUrl)}&name=${playInfo.name}&vid=${playInfo.vid}`);
+    const startTime = document.getElementById('audioStartTime').value.trim();
+    const endTime = document.getElementById('audioEndTime').value.trim();
+    
+    const url = `https://foamzou.com/tools/bilibili/fetchAudio.php?url=${encodeURIComponent(playInfo.audioUrl)}&name=${playInfo.name}&vid=${playInfo.vid}`;
+    const fullUrl = startTime || endTime ? 
+        `${url}&start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}` : 
+        url;
+    
+    const responsePayload = await fetch(fullUrl);
     const response = await responsePayload.json();
     if (response.code != 0) {
         const tip = '音频转码失败，建议复制代码：获取音频';
@@ -172,9 +184,11 @@ function genMp4Cmd() {
 
 function genMp3Cmd() {
     const playInfo = getMediaInfo();
+    const startTime = document.getElementById('audioStartTime').value.trim();
+    const endTime = document.getElementById('audioEndTime').value.trim();
 
     const audioCmd = genCurlCmd(playInfo.audioUrl, AUDIO_NAME);
-    const mp3Cmd = ffmpegMp3(playInfo.name);
+    const mp3Cmd = ffmpegMp3(playInfo.name, startTime, endTime);
     return `mkdir "${playInfo.name}" ; cd "${playInfo.name}" ; ${audioCmd} ; ${mp3Cmd}`;
 }
 
@@ -189,8 +203,17 @@ function ffmpegMp4(name) {
     return `ffmpeg -i ${VIDEO_NAME} -i ${AUDIO_NAME}  -c:v copy -strict experimental '${name}.mp4'`;
 }
 
-function ffmpegMp3(name) {
-    return `ffmpeg -i ${AUDIO_NAME}  -c:v copy -strict experimental '${name}.mp3'`;
+function ffmpegMp3(name, startTime, endTime) {
+    let timeArgs = '';
+    
+    if (startTime) {
+        timeArgs += ` -ss ${startTime}`;
+    }
+    if (endTime) {
+        timeArgs += ` -to ${endTime}`;
+    }
+
+    return `ffmpeg -i ${AUDIO_NAME}${timeArgs} -c:a libmp3lame -q:a 2 '${name}.mp3'`;
 }
 
 function toast(msg, duration) {
