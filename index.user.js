@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili downloader
 // @namespace    https://github.com/foamzou/bilibili-downloader
-// @version      0.3.1
+// @version      0.3.2
 // @description  哔哩哔哩（b站）音视频下载脚本
 // @author       foamzou
 // @match        https://www.bilibili.com/video/*
@@ -121,7 +121,7 @@ async function downloadAudio() {
     }
     const aNode = document.getElementById('IdDownloadAudio');
     const playInfo = getMediaInfo();
-    const responsePayload = await fetch(`https://foamzou.com/tools/bilibili/fetchAudio.php?url=${encodeURIComponent(playInfo.audioUrl)}&name=${playInfo.name}&vid=${playInfo.vid}`);
+    const responsePayload = await fetch(`https://foamzou.com/tools/bilibili/fetchAudio.php?url=${encodeURIComponent(playInfo.audioUrl)}&name=${playInfo.name}&vid=${playInfo.vid}&startTime=${encodeURIComponent(playInfo.startTime)}&endTime=${encodeURIComponent(playInfo.endTime)}`);
     const response = await responsePayload.json();
     if (response.code != 0) {
         const tip = '音频转码失败，建议复制代码：获取音频';
@@ -161,6 +161,8 @@ function getMediaInfo() {
         audioUrl: playinfo.data.dash.audio[0].baseUrl,
         name: document.title.replace('_哔哩哔哩_bilibili', '').replace(/[ |.|\/]/g, '-'),
         vid: window.location.href.split('video/')[1].split('?')[0],
+        startTime: document.getElementById('audioStartTime').value.trim(),
+        endTime: document.getElementById('audioEndTime').value.trim(),
     };
     return playInfo;
 }
@@ -208,7 +210,7 @@ function ffmpegMp4(name, startTime, endTime) {
 
 function ffmpegMp3(name, startTime, endTime) {
     let timeArgs = '';
-    
+
     if (startTime) {
         timeArgs += ` -ss ${startTime}`;
     }
