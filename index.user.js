@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Bilibili downloader
 // @namespace    https://github.com/foamzou/bilibili-downloader
-// @version      0.4.0
+// @version      0.4.1
 // @description  哔哩哔哩（b站）音视频下载脚本，支持本地Docker部署，提供更强大的下载体验。
 // @author       foamzou
 // @match        https://www.bilibili.com/video/*
 // @icon         https://www.google.com/s2/favicons?domain=bilibili.com
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 var playInfo = null;
@@ -21,6 +22,50 @@ const activePolls = new Set();
 
 const LOCK_KEY = 'bili_downloader_history_lock';
 const LOCK_TIMEOUT = 5000; // 5 seconds
+
+// 封装 GM_xmlhttpRequest 为类似 fetch 的 API，解决 Mixed Content 问题
+function gmFetch(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        const {
+            method = 'GET',
+            headers = {},
+            body = null
+        } = options;
+
+        GM_xmlhttpRequest({
+            method: method,
+            url: url,
+            headers: headers,
+            data: body,
+            onload: function(response) {
+                // 创建一个类似 fetch Response 的对象
+                const fetchLikeResponse = {
+                    ok: response.status >= 200 && response.status < 300,
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.responseHeaders,
+                    json: function() {
+                        try {
+                            return Promise.resolve(JSON.parse(response.responseText));
+                        } catch (e) {
+                            return Promise.reject(new Error('Invalid JSON response'));
+                        }
+                    },
+                    text: function() {
+                        return Promise.resolve(response.responseText);
+                    }
+                };
+                resolve(fetchLikeResponse);
+            },
+            onerror: function(error) {
+                reject(new Error(error.message || 'Network error'));
+            },
+            ontimeout: function() {
+                reject(new Error('Request timeout'));
+            }
+        });
+    });
+}
 
 async function acquireLock() {
     const startTime = Date.now();
@@ -87,7 +132,7 @@ function createModal() {
             </div>
             <div class="modal-body">
                 <div id="onboarding-tooltip" style="display: none;"></div>
-                
+
                 <div class="modal-tabs">
                     <button class="tab-btn active" data-tab="download">下载</button>
                     <button class="tab-btn" data-tab="history">下载记录</button>
@@ -152,7 +197,7 @@ function createModal() {
         button.addEventListener('click', () => {
             modal.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            
+
             const tabName = button.dataset.tab;
             modal.querySelectorAll('.tab-pane').forEach(pane => {
                 pane.style.display = pane.dataset.pane === tabName ? 'block' : 'none';
@@ -162,7 +207,7 @@ function createModal() {
             });
         });
     });
-    
+
     // Bind events
     document.getElementById("btnDownloadAudio").addEventListener("click", () => downloadMedia('audio'));
     document.getElementById("btnDownloadVideo").addEventListener("click", () => downloadMedia('video'));
@@ -215,7 +260,7 @@ function populateConfigUI() {
 async function checkServerStatus() {
     const tooltip = document.getElementById('onboarding-tooltip');
     try {
-        const response = await fetch(`${userConfig.serverUrl}/healthcheck`);
+        const response = await gmFetch(`${userConfig.serverUrl}/healthcheck`);
         if (response.ok) {
             tooltip.style.display = 'none';
         } else {
@@ -285,14 +330,14 @@ async function checkFileExists() {
             vid,
             isVideo
         });
-        
-        const audioExistsPromise = fetch(`${userConfig.serverUrl}/check-exists`, {
+
+        const audioExistsPromise = gmFetch(`${userConfig.serverUrl}/check-exists`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(checkPayload(false))
         }).then(res => res.json());
 
-        const videoExistsPromise = fetch(`${userConfig.serverUrl}/check-exists`, {
+        const videoExistsPromise = gmFetch(`${userConfig.serverUrl}/check-exists`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(checkPayload(true))
@@ -658,7 +703,7 @@ async function handleDownload(info, type) {
             fileNameFormat: userConfig.fileNameFormat,
         };
 
-        const response = await fetch(`${userConfig.serverUrl}/download`, {
+        const response = await gmFetch(`${userConfig.serverUrl}/download`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -701,10 +746,10 @@ async function addToHistory(jobData) {
         const currentHistory = JSON.parse(localStorage.getItem('bili_downloader_history') || '[]');
         // 避免重复添加
         if (currentHistory.some(j => j.jobId === jobData.jobId)) return;
-        
+
         currentHistory.unshift(jobData);
         localStorage.setItem('bili_downloader_history', JSON.stringify(currentHistory));
-        
+
         downloadHistory = currentHistory;
         renderHistory();
     } finally {
@@ -726,7 +771,7 @@ async function updateHistory(jobId, status, progress, error, finalPath) {
             job.error = error || null;
             job.path = finalPath || job.path;
             localStorage.setItem('bili_downloader_history', JSON.stringify(currentHistory));
-            
+
             downloadHistory = currentHistory;
             renderHistory(); // 重新渲染以更新UI
         }
@@ -861,7 +906,7 @@ function pollJobStatus(jobId) {
 
     const intervalId = setInterval(async () => {
         try {
-            const response = await fetch(`${userConfig.serverUrl}/status/${jobId}`);
+            const response = await gmFetch(`${userConfig.serverUrl}/status/${jobId}`);
             if (!response.ok) {
                 // 如果服务器返回404，说明任务ID不存在（可能服务器重启了），停止轮询
                 if (response.status === 404) {
