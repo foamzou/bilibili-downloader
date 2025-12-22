@@ -44,11 +44,56 @@ function sendResponse(res, msg, data = "", code = -1) {
     }
 }
 
-function genCurlCmd(url, filename, vid) {
-    return `curl '${url}' \
-  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.61 Safari/537.36' \
-  -H 'referer: https://www.bilibili.com/video/${vid}' \
-  --compressed -o ${filename} -L -s`;
+/**
+ * 下载函数
+ * @param {string} url - 视频流 URL
+ * @param {string} vid - 视频 VID (用于 Referer)
+ * @param {string} filename - 保存的文件名
+ * @param {function} callback - 进度回调函数，接收参数 { percent, transferred, total }
+ */
+async function downloadBilibiliAsset(url, vid, filename, callback) {
+    const outputPath = path.resolve(__dirname, 'downloaded', filename);
+    const writer = fs.createWriteStream(outputPath);
+    let throttleCallbackTime = Date.now();
+
+    try {
+        const response = await axios.get(url, {
+            responseType: 'stream',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.61 Safari/537.36',
+                'Referer': `https://www.bilibili.com/video/${vid}`,
+                'Accept-Encoding': 'identity' // 禁用压缩以便准确计算字节进度
+            }
+        });
+
+        const totalBytes = parseInt(response.headers['content-length'], 10);
+        let transferredBytes = 0;
+
+        // 监听数据流，计算进度
+        response.data.on('data', (chunk) => {
+            transferredBytes += chunk.length;
+            if (callback && typeof callback === 'function' && Date.now() - throttleCallbackTime > 100) {
+                throttleCallbackTime = Date.now();
+                const percent = totalBytes ? (transferredBytes / totalBytes * 100).toFixed(2) : 0;
+                callback({
+                    percent: parseFloat(percent),
+                    transferred: transferredBytes,
+                    total: totalBytes || 0
+                });
+            }
+        });
+
+        response.data.pipe(writer);
+
+        return new Promise((resolve, reject) => {
+            writer.on('finish', resolve);
+            writer.on('error', reject);
+        });
+    } catch (error) {
+        writer.close();
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        throw error;
+    }
 }
 
 app.use(express.json());
@@ -77,7 +122,7 @@ function getFinalPath(jobRequest) {
     const isVideo = !!audioUrl;
 
     let formattedFilename = formatFilename(fileNameFormat, { name, vid });
-     // 确保视频文件是 .mp4 后缀
+    // 确保视频文件是 .mp4 后缀
     if (isVideo && !formattedFilename.endsWith('.mp4')) {
         const baseName = formattedFilename.replace(/\.[^/.]+$/, "");
         formattedFilename = `${baseName}.mp4`;
@@ -111,7 +156,7 @@ async function runJob(jobId) {
     const videoTempPath = isVideo ? path.join(contentDir, `${jobId}-video.m4s`) : null;
     const audioTempPath = path.join(contentDir, `${jobId}-audio.m4s`);
     const tempFiles = [videoTempPath, audioTempPath].filter(Boolean);
-    
+
     try {
         const filesToDownload = [];
         if (isVideo) {
@@ -133,7 +178,7 @@ async function runJob(jobId) {
                         timeout: 10000 // 10秒超时
                     });
                     file.size = parseInt(response.headers['content-length'], 10);
-                    if(isNaN(file.size)) throw new Error(`无法获取 ${file.type} 的文件大小`);
+                    if (isNaN(file.size)) throw new Error(`无法获取 ${file.type} 的文件大小`);
                     totalSize += file.size;
                     success = true;
                 } catch (headError) {
@@ -153,34 +198,15 @@ async function runJob(jobId) {
         log(`[Job ${jobId}] 开始下载. 总大小: ${totalSize}`, job.request);
 
         for (const file of filesToDownload) {
-            const curlCmd = genCurlCmd(file.url, file.path, vid);
-            
-            // Use a promise to track progress and completion
-            const downloadPromise = new Promise((resolve, reject) => {
-                const curlProcess = exec(curlCmd, (error, stdout, stderr) => {
-                    if (error) {
-                        return reject(new Error(`curl 失败 (code ${error.code}): ${stderr}`));
-                    }
-                    resolve();
+            try {
+                await downloadBilibiliAsset(file.url, vid, file.path, ({ transferred, total }) => {
+                    job.progress = Math.floor((downloadedSize + transferred) / totalSize * 90);
+                    log(`[Job ${jobId}] 下载进度: ${Math.floor((transferred) / total * 100)}%`);
                 });
-                
-                const progressInterval = setInterval(() => {
-                    if (!fs.existsSync(file.path)) return;
-                    try {
-                        const stats = fs.statSync(file.path);
-                        const overallDownloaded = downloadedSize + stats.size;
-                        job.progress = Math.floor((overallDownloaded / totalSize) * 90); // Download is 90%
-                    } catch (statError) {
-                        // Ignore stat errors, might be a race condition with file deletion
-                    }
-                }, 500);
+            } catch (error) {
+                log(`[Job ${jobId}] 下载失败: ${error.message}`, job.request);
+            }
 
-                curlProcess.on('close', () => {
-                    clearInterval(progressInterval);
-                });
-            });
-
-            await downloadPromise;
             if (fs.existsSync(file.path)) {
                 downloadedSize += fs.statSync(file.path).size;
             }
@@ -196,19 +222,19 @@ async function runJob(jobId) {
         let timeArgs = '';
         if (startTime) timeArgs += ` -ss ${startTime}`;
         if (endTime) timeArgs += ` -to ${endTime}`;
-        
+
         const outputOptions = isVideo ? `-c copy` : `-c:a aac -b:a 192k`;
         const ffmpegCmd = isVideo
             ? `ffmpeg -y -i "${videoTempPath}" -i "${audioTempPath}" ${timeArgs} -c copy "${finalPath}"`
             : `ffmpeg -y -i "${audioTempPath}" ${timeArgs} -c:a libmp3lame -q:a 2 "${finalPath}"`; // Re-encode AAC to MP3
-        
+
         log(`[Job ${jobId}] FFMPEG 命令: ${ffmpegCmd}`, job.request);
         try {
             const { stdout, stderr } = await execPromise(ffmpegCmd);
             if (stderr) {
-                 log(`[Job ${jobId}] FFMPEG 处理完成，有标准错误输出: ${stderr}`, job.request);
+                log(`[Job ${jobId}] FFMPEG 处理完成，有标准错误输出: ${stderr}`, job.request);
             }
-        } catch(ffmpegError) {
+        } catch (ffmpegError) {
             // Re-throw with detailed stderr
             throw new Error(`FFMPEG 失败: ${ffmpegError.stderr || ffmpegError.message}`);
         }
@@ -225,14 +251,14 @@ async function runJob(jobId) {
         // Cleanup temp files
         log(`[Job ${jobId}] 清理临时文件...`, job.request);
         for (const file of tempFiles) {
-             if(fs.existsSync(file)) fs.unlinkSync(file);
+            if (fs.existsSync(file)) fs.unlinkSync(file);
         }
     }
 }
 
 app.post('/download', (req, res) => {
     const { videoUrl, audioUrl, name, vid, startTime, endTime, fileNameFormat } = req.body;
-    
+
     log('下载请求已收到', req);
 
     // Basic validation
