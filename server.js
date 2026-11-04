@@ -45,6 +45,40 @@ function sendResponse(res, msg, data = "", code = -1) {
 }
 
 /**
+ * 获取远程文件大小
+ * 部分 P2P 节点（如 *.mcdn.bilivideo.cn）不支持 HEAD 请求，会返回 404，
+ * 因此改用 Range 请求读取 Content-Range 中的总大小。
+ * @param {string} url - 视频流 URL
+ * @param {string} vid - 视频 VID (用于 Referer)
+ * @returns {Promise<number>} 文件总字节数
+ */
+async function getRemoteFileSize(url, vid) {
+    const response = await axios.get(url, {
+        headers: {
+            'Referer': `https://www.bilibili.com/video/${vid}`,
+            'Range': 'bytes=0-0'
+        },
+        responseType: 'stream',
+        timeout: 10000,
+        validateStatus: status => status === 200 || status === 206
+    });
+
+    // 只需要响应头，立即释放连接
+    response.data.destroy();
+
+    const contentRange = response.headers['content-range'];
+    if (contentRange) {
+        const total = parseInt(contentRange.split('/')[1], 10);
+        if (!isNaN(total)) return total;
+    }
+
+    const contentLength = parseInt(response.headers['content-length'], 10);
+    if (!isNaN(contentLength)) return contentLength;
+
+    throw new Error('无法获取文件大小');
+}
+
+/**
  * 下载函数
  * @param {string} url - 视频流 URL
  * @param {string} vid - 视频 VID (用于 Referer)
@@ -173,12 +207,7 @@ async function runJob(jobId) {
             let success = false;
             while (retries > 0 && !success) {
                 try {
-                    const response = await axios.head(file.url, {
-                        headers: { 'Referer': `https://www.bilibili.com/video/${vid}` },
-                        timeout: 10000 // 10秒超时
-                    });
-                    file.size = parseInt(response.headers['content-length'], 10);
-                    if (isNaN(file.size)) throw new Error(`无法获取 ${file.type} 的文件大小`);
+                    file.size = await getRemoteFileSize(file.url, vid);
                     totalSize += file.size;
                     success = true;
                 } catch (headError) {
