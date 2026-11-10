@@ -73,7 +73,7 @@ async function getRemoteFileSize(url, vid) {
     }
 
     const contentLength = parseInt(response.headers['content-length'], 10);
-    if (!isNaN(contentLength)) return contentLength;
+    if (response.status === 200 && !isNaN(contentLength)) return contentLength;
 
     throw new Error('无法获取文件大小');
 }
